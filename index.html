@@ -583,6 +583,7 @@
     <div id="learn-block" style="display:none;font-size:13px;line-height:1.7;color:var(--text2)">
       <div style="font-weight:600;color:var(--text);margin-bottom:8px;margin-top:12px">Как подключить свою таблицу</div>
       <div style="padding:8px 12px;background:rgba(252,129,129,0.1);border-radius:8px;font-size:12px;margin-bottom:10px">⚠️ Настройка возможна только с компьютера. С телефона и планшета редактор скриптов не открывается.</div>
+      <button class="btn btn-ghost btn-sm" onclick="openVideoModal()" style="width:100%;padding:10px;margin-bottom:12px;font-size:13px">▶ Смотреть видео-инструкцию</button>
       <a href="https://docs.google.com/spreadsheets/d/1P8Tfu3L-twQIE2VhfU6XwFsys3oC3yQpWrUB4SoezcU/copy" target="_blank" style="display:block;text-align:center;padding:10px;margin:0 0 12px 0;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-size:14px;font-weight:600">📋 Создать свою таблицу</a>
       <ol style="padding-left:20px;margin:0">
         <li>Нажмите кнопку выше «Создать свою таблицу»</li>
@@ -762,6 +763,19 @@
   </div>
 </div>
 
+<!-- VIDEO MODAL -->
+<div class="edit-overlay" id="video-overlay" onclick="if(event.target===this)closeVideoModal()">
+  <div class="edit-modal" style="max-width:720px">
+    <div class="edit-modal-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>▶ Как подключить свою таблицу</span>
+      <span onclick="closeVideoModal()" style="cursor:pointer;font-size:20px;color:var(--text2);line-height:1">&times;</span>
+    </div>
+      <div style="aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000">
+        <iframe src="https://vkvideo.ru/video_ext.php?oid=-238748755&id=456239017&hash=48d6b18c62eacfae&hd=3" style="width:100%;height:100%;border:none" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;" allowfullscreen></iframe>
+      </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // TOUR
@@ -781,6 +795,14 @@ function openDonateModal() {
 
 function closeDonateModal() {
   document.getElementById('donate-overlay').classList.remove('show');
+}
+
+function openVideoModal() {
+  document.getElementById('video-overlay').classList.add('show');
+}
+
+function closeVideoModal() {
+  document.getElementById('video-overlay').classList.remove('show');
 }
 
 function toggleLearn() {
