@@ -1124,6 +1124,7 @@ function clearUnsupportedFlag(key) {
   // скрипте каждый запрос идёт 1-3 сек.
   warmupPromise
     .then(async () => {
+      await loadCategories();
       await loadSettings();
       await loadAssets();
       await loadPositions();
@@ -1131,6 +1132,7 @@ function clearUnsupportedFlag(key) {
       await loadTransactionsFull();
     })
     .catch(async () => {
+      await loadCategories();
       await loadSettings();
       await loadAssets();
       await loadPositions();
@@ -2498,7 +2500,7 @@ function renderAssetInputList() {
         </div>
         <div class="asset-group-sort">
           <select onchange="setAssetGroupSort('${g.key}',this.value)">
-            <option value="order" ${sort==='order'?'selected':''}>мой порядок</option>
+            <option value="order" ${sort==='order'?'selected':''}>как в таблице</option>
             <option value="name" ${sort==='name'?'selected':''}>по имени</option>
             <option value="sum" ${sort==='sum'?'selected':''}>по сумме</option>
           </select>
