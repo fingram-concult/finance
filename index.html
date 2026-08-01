@@ -49,6 +49,11 @@
     .demo-banner-text { flex: 1; color: var(--text); }
     .demo-banner-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; white-space: nowrap; }
     .demo-banner-btn:hover { background: var(--accent); color: #fff; }
+    .release-banner { display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 99; padding: 8px 16px; background: #1b2f6b; border-bottom: 1px solid var(--accent); font-size: 13px; }
+    .release-banner-text { flex: 1; color: var(--text); font-size: 12px; line-height: 1.4; }
+    .release-banner-text b { color: var(--accent); }
+    .release-banner-close { background: transparent; border: none; color: var(--text2); cursor: pointer; font-size: 16px; padding: 2px 6px; }
+    .release-banner-close:hover { color: var(--text); }
 
     /* TOUR */
     .tour-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
@@ -262,6 +267,33 @@
     .bal-pos-pct { color: var(--text2); font-size: 11px; min-width: 36px; text-align: right; }
     .bal-pos-amount { font-weight: 600; color: var(--text); min-width: 90px; text-align: right; }
 
+    /* ASSET INPUT GROUPS */
+    .asset-groups { display: flex; gap: 12px; align-items: flex-start; }
+    .asset-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+    .asset-group { flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--surface); }
+    @media (max-width: 640px) { .asset-groups { flex-direction: column; } }
+    .asset-group.dragging { opacity: 0.4; border-style: dashed; }
+    .asset-group-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .asset-group-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; user-select: none; min-width: 0; }
+    .asset-group-title[draggable="true"] { cursor: grab; }
+    .asset-group-title[draggable="true"]:active { cursor: grabbing; }
+    .asset-group-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .asset-group-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .asset-group-count { font-size: 11px; color: var(--text2); background: var(--surface2); border-radius: 10px; padding: 2px 8px; white-space: nowrap; }
+    .asset-move-btn { font-size: 11px; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); cursor: pointer; }
+    .asset-move-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .asset-move-btn:disabled { opacity: 0.35; cursor: default; }
+    .asset-group-sort { margin-bottom: 8px; }
+    .asset-group-sort select { font-size: 11px; padding: 2px 4px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+    .asset-pos { margin-bottom: 8px; }
+    .asset-pos:last-child { margin-bottom: 0; }
+    .asset-pos-row { display: flex; align-items: center; gap: 6px; }
+    .asset-pos-name { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .asset-pos-name span { color: var(--text2); font-size: 10px; }
+    .asset-pos-input { width: 92px; padding: 4px 6px; font-size: 12px; flex-shrink: 0; }
+    .asset-pos-input.empty { border-color: var(--warning, #f6ad55); }
+    .asset-pos-hint { font-size: 10px; color: var(--accent); margin-top: 2px; min-height: 14px; }
+
     @media (max-width: 600px) {
       .nav-tab { padding: 5px 7px; font-size: 11px; }
       .balance-header { grid-template-columns: 1fr; }
@@ -289,6 +321,14 @@
   <span class="demo-banner-icon">🧪</span>
   <span class="demo-banner-text" id="demo-banner-text"></span>
   <button class="demo-banner-btn" id="demo-banner-action"></button>
+</div>
+
+<!-- Релиз-нот: показывается один раз после обновления приложения -->
+<div class="release-banner" id="release-banner" style="display:none">
+  <span class="demo-banner-icon">🆕</span>
+  <div class="release-banner-text" id="release-banner-text"></div>
+  <button class="demo-banner-btn" onclick="releaseShowHowTo()">Как развернуть</button>
+  <button class="release-banner-close" onclick="releaseDismiss()" title="Закрыть">✕</button>
 </div>
 
 <!-- ===================== МЕСЯЦ ===================== -->
@@ -492,11 +532,15 @@
         <input type="checkbox" id="snap-delta" onchange="renderBalanceChart()"> прирост, %
       </label>
     </div>
-    <div class="period-row" style="margin-top:-8px">
+  </div>
+
+  <!-- Фильтр блоков/счетов — во всех режимах -->
+  <div id="balance-chart-filters">
+    <div class="period-row" style="margin-bottom:8px">
       <span style="font-size:12px;color:var(--text2);margin-right:4px">Тип:</span>
       <div class="chips" id="snap-block-chips"></div>
     </div>
-    <div class="period-row" style="margin-top:-8px">
+    <div class="period-row" style="margin-bottom:8px">
       <span style="font-size:12px;color:var(--text2);margin-right:4px">Счёт:</span>
       <div class="chips" id="snap-account-chips"></div>
     </div>
@@ -873,6 +917,7 @@ const S = {
   chartExpense: null, chartIncome: null, chartDynamics: null,
   isDemo: false,
   editType: 'expense', editCategory: null,
+  yearSortKey: null, yearSortDir: 1,
 };
 
 const DEMO_API_URL = 'https://script.google.com/macros/s/AKfycbxgPGnOdn48TfjyYya_RzcnTOAiZel3pu7_PH9MmFHLC_T9_HplcVznw6IlE0g2If1Q/exec';
@@ -900,6 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const realUrl = localStorage.getItem('real_api_url');
   if (realUrl) document.getElementById('settings-url').value = realUrl;
   updateDemoBanner();
+  showReleaseBanner();
   showPage('dashboard');
   loadAll();
   if (!localStorage.getItem('tour_seen')) {
@@ -907,6 +953,45 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('tour_seen', '1');
   }
 });
+
+// ============================================================
+// РЕЛИЗ-НОТ
+// При каждом обновлении меняем дату и текст — покажется один раз
+// тем, кто не видел эту версию. Хранится по ключу release_seen_<дата>.
+// ============================================================
+const RELEASE = {
+  date: '2026-08-01',
+  title: 'Обновление от 01.08.2026',
+  text: 'Что нового: ' +
+        '• Значительно ускорена загрузка данных (прогрев скрипта, увеличенный таймаут). ' +
+        '• Динамика: капитал теперь может уходить в минус. ' +
+        '• Исправлена ошибка при загрузке баланса. ' +
+        '• + Запись: можно вносить отрицательные суммы — удобно для возврата брони или компенсаций. ' +
+        '• Год: таблицы теперь можно сортировать кликом по заголовку (Категория / Итого). ' +
+        '• Баланс: форма ввода сгруппирована по счетам, порядок блоков и сортировку внутри можно менять перетаскиванием. ' +
+        '<b>Важно:</b> нужно заново развернуть скрипт (Обновить — Развернуть — Версия — Новый). ' +
+        'Как это сделать — в видео-инструкции в Настройках → 📋 Обучение.',
+};
+
+function showReleaseBanner() {
+  const banner = document.getElementById('release-banner');
+  if (!banner) return;
+  if (localStorage.getItem('release_seen_' + RELEASE.date)) return;
+  document.getElementById('release-banner-text').innerHTML =
+    `<div style="font-weight:600;margin-bottom:2px">${RELEASE.title}</div>${RELEASE.text}`;
+  banner.style.display = 'flex';
+}
+
+function releaseDismiss() {
+  localStorage.setItem('release_seen_' + RELEASE.date, '1');
+  document.getElementById('release-banner').style.display = 'none';
+}
+
+function releaseShowHowTo() {
+  releaseDismiss();
+  showPage('settings');
+  setTimeout(toggleLearn, 300);
+}
 
 function updateDemoBanner() {
   const banner = document.getElementById('demo-banner');
@@ -930,6 +1015,73 @@ function updateDemoBanner() {
   if (demoBtn) demoBtn.style.display = realUrl ? 'inline-block' : 'none';
 }
 
+// Кэш данных в localStorage, привязанный к URL таблицы.
+// При повторном открытии страницы данные показываются мгновенно,
+// в фоне обновляются свежим запросом (для старых скриптов — без ожидания 5 запросов).
+function cacheKey() {
+  let u = S.apiUrl || '';
+  let h = 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) >>> 0;
+  return 'finance_cache_' + h;
+}
+const CACHE_TTL_MS = 6 * 3600 * 1000; // 6 часов
+function saveCache(payload) {
+  try {
+    const p = { savedAt: Date.now(), ...payload };
+    localStorage.setItem(cacheKey(), JSON.stringify(p));
+  } catch(e) { /* переполнение localStorage — игнорируем */ }
+}
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(cacheKey());
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p.savedAt || Date.now() - p.savedAt > CACHE_TTL_MS) return null;
+    return p;
+  } catch(e) { return null; }
+}
+
+// Дополняем кэш данными из поштучных load-функций (фолбек для старых скриптов)
+function updateCacheAfter(part) {
+  try {
+    const p = loadCache() || { savedAt: Date.now(), categories: [], settings: {}, assets: [], positions: [], accounts: [], transactions: [], transactionsLoaded: 'full' };
+    if (part === 'transactions') {
+      p.transactions = S.transactions;
+      p.transactionsLoaded = 'full';
+    } else if (part === 'assets') p.assets = S.assets;
+    else if (part === 'positions') p.positions = S.positions;
+    else if (part === 'categories') p.categories = S.categories;
+    else if (part === 'settings') p.settings = S.settings;
+    else if (part === 'accounts') p.accounts = S.accounts;
+    p.savedAt = Date.now();
+    localStorage.setItem(cacheKey(), JSON.stringify(p));
+  } catch(e) {}
+}
+
+// Применяем закэшированные/полученные данные + все рендеры
+function applyAllData(data) {
+  S.categories = data.categories || [];
+  S.settings = data.settings || {};
+  S.assets = (data.assets || []).map(a => ({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
+  S.positions = (data.positions || []).map(p => ({...p, active: p.active !== false}));
+  S.accounts = data.accounts || [];
+  if (data.transactions) {
+    S.transactions = data.transactions.map(t => ({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
+    S.transactionsLoaded = data.transactionsLoaded || 'full';
+  }
+  applySettings();
+  renderCategoryChips(); renderSettingsCategories();
+  renderAssetSelect(); renderPositionsList();
+  renderBalance();
+  if (S.transactions.length) {
+    renderDashboard(); renderYearTable(); renderDynamics(); renderHistory();
+  }
+}
+
+// Волна 1: мгновенный показ кэша (если есть)
+// Волна 2: один запрос getAllData (категории+настройки+активы+позиции+аккаунты)
+// Волна 3: полная история (в фоне)
+// Если скрипт старый (нет getAllData) — фолбек на поштучные load-функции с флагом.
 function loadAll() {
   const now = new Date();
   const y = now.getFullYear();
@@ -938,15 +1090,83 @@ function loadAll() {
   const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
   const to = `${y}-${m}-${pad(lastDay)}`;
 
+// Временные флаги несовместимости скрипта: метка времени + TTL, чтобы после
+// переразвёртывания скрипта фронт снова пробовал новые эндпоинты.
+const UNSUPPORTED_FLAG_TTL = 6 * 60 * 60 * 1000; // 6 часов
+function getUnsupportedFlag(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    const o = JSON.parse(raw);
+    if (!o || !o.t) return false;
+    return Date.now() - o.t < UNSUPPORTED_FLAG_TTL;
+  } catch(e) { return false; }
+}
+function setUnsupportedFlag(key) {
+  try { localStorage.setItem(key, JSON.stringify({ t: Date.now() })); } catch(e) {}
+}
+function clearUnsupportedFlag(key) {
+  try { localStorage.removeItem(key); } catch(e) {}
+}
+
+  // мгновенный рендер из кэша — пользователь не ждёт
+  const cached = loadCache();
+  if (cached) applyAllData(cached);
+
+  // Прогревка: первый запрос к уснувшему Apps Script-контейнеру может идти
+  // 20-60 сек (cold start). ЖДЁМ его завершения — только потом шлём остальное,
+  // иначе параллельные запросы в холодный контейнер путаются и падают.
+  const warmupPromise = warmup();
+
+  // Загрузка строго ПОСЛЕДОВАТЕЛЬНО: Apps Script при параллельных запросах
+  // к одному скрипту путает ответы (getSettings возвращает данные getAssets).
+  // Последовательно — всегда корректно. Прогрев уже сделан, поэтому на тёплом
+  // скрипте каждый запрос идёт 1-3 сек.
+  warmupPromise
+    .then(async () => {
+      await loadSettings();
+      await loadAssets();
+      await loadPositions();
+      await loadTransactionsFast(from, to);
+      await loadTransactionsFull();
+    })
+    .catch(async () => {
+      await loadSettings();
+      await loadAssets();
+      await loadPositions();
+      await loadTransactionsFast(from, to);
+      await loadTransactionsFull();
+    });
+}
+
+// Прогревка: единственный лёгкий запрос, который будит уснувший Apps Script
+// (cold start может занять 20-60 сек). Всё остальное стартуем после неё,
+// чтобы не слать 6 запросов одновременно в холодный контейнер.
+function warmup() {
+  const url = new URL(S.apiUrl);
+  url.searchParams.set('action', 'getCategories');
+  return fetchWithTimeout(url.toString(), {}, 60000)
+    .then(res => res.json())
+    .then(r => {
+      if (r && Array.isArray(r.data)) {
+        S.categories = r.data;
+        renderCategoryChips();
+        renderSettingsCategories();
+        updateCacheAfter('categories');
+      }
+    })
+    .catch(() => {});
+}
+
+// Фолбек для старых скриптов: поштучная загрузка. Всё параллельно — так было в
+// старой версии и грузится за один круг вместо трёх волн.
+function loadAllLegacy(from, to) {
   Promise.all([
-    loadCategories(),
-    loadTransactionsFast(from, to),
+    loadSettings(),
     loadAssets(),
     loadPositions(),
-    loadSettings(),
-  ]).then(() => {
-    loadTransactionsFull();
-  });
+    loadTransactionsFast(from, to),
+  ]).then(() => loadTransactionsFull()).catch(() => {});
 }
 
 function exitDemo() {
@@ -972,37 +1192,35 @@ function toggleDemo() {
 // ============================================================
 // API
 // ============================================================
-function fetchWithTimeout(input, init={}, timeout=10000){
+function fetchWithTimeout(input, init={}, timeout=60000){
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),timeout);
   return fetch(input,{...init,signal:ctrl.signal}).finally(()=>clearTimeout(timer));
 }
 
-async function apiGet(params) {
-  const url = new URL(S.apiUrl);
-  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
+// GET без ретрая — один запрос. Для медленных скриптов ретрай делает только хуже
+// (2 попытки × таймаут = до минуты на запрос вместо нескольких секунд).
+async function apiFetch(doFetch) {
   try {
-    const res = await fetchWithTimeout(url.toString());
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const res = await doFetch();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    if (result && result.error) throw new Error('Apps Script: ' + result.error);
+    return result;
   } catch(e) {
-    const msg = e.name==='AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: '+e.message;
+    const msg = e.name === 'AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: ' + e.message;
     showToast(msg, 'error');
     throw e;
   }
 }
+
+async function apiGet(params) {
+  const url = new URL(S.apiUrl);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
+  return apiFetch(() => fetchWithTimeout(url.toString()));
+}
 async function apiPost(data) {
-  try {
-    const res = await fetchWithTimeout(S.apiUrl, { method: 'POST', body: JSON.stringify(data) });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const result = await res.json();
-    if(result && result.error) throw new Error('Apps Script: ' + result.error);
-    return result;
-  } catch(e) {
-    const msg = e.name==='AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка: '+e.message;
-    showToast(msg, 'error');
-    throw e;
-  }
+  return apiFetch(() => fetchWithTimeout(S.apiUrl, { method: 'POST', body: JSON.stringify(data) }));
 }
 
 // ============================================================
@@ -1014,7 +1232,7 @@ async function errToast(e, label) {
 }
 
 async function loadCategories() {
-  try { const r = await apiGet({action:'getCategories'}); S.categories = r.data||[]; renderCategoryChips(); renderSettingsCategories(); } catch(e){ errToast(e, 'категорий'); }
+  try { const r = await apiGet({action:'getCategories'}); S.categories = r.data||[]; renderCategoryChips(); renderSettingsCategories(); updateCacheAfter('categories'); } catch(e){ errToast(e, 'категорий'); }
 }
 // быстрая загрузка — только текущий месяц
 async function loadTransactionsFast(from, to) {
@@ -1032,6 +1250,7 @@ async function loadTransactionsFull() {
     const r = await apiGet({action:'getTransactions'});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = 'full';
+    updateCacheAfter('transactions');
     // если данных нет за текущий год — переключаемся на последний год с данными
     const years = [...new Set(S.transactions.map(t=>t.date.substring(0,4)))].sort();
     if (years.length) {
@@ -1050,6 +1269,7 @@ async function loadAssets() {
   try {
     const r = await apiGet({action:'getAssets'});
     S.assets = (r.data||[]).map(a=>({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
+    updateCacheAfter('assets');
     renderBalance();
     renderDashboard();
   } catch(e){ errToast(e, 'активов'); }
@@ -1058,6 +1278,7 @@ async function loadPositions() {
   try {
     const r = await apiGet({action:'getPositions'});
     S.positions = (r.data||[]).map(p=>({...p, active: p.active !== false}));
+    updateCacheAfter('positions');
     renderAssetSelect(); renderPositionsList(); renderBalance();
   } catch(e){ errToast(e, 'позиций'); }
 }
@@ -1065,6 +1286,7 @@ async function loadSettings() {
   try {
     const r = await apiGet({action:'getSettings'});
     S.settings = r.data||{};
+    updateCacheAfter('settings');
     applySettings();
   } catch(e){ errToast(e, 'настроек'); }
 }
@@ -1286,6 +1508,18 @@ function renderYearTable() {
   renderYearSection('income', 'year-income-container');
 }
 
+// Сортировка таблицы Год по клику на заголовок
+function setYearSort(type, key) {
+  if (S.yearSortKey === key) S.yearSortDir *= -1;
+  else { S.yearSortKey = key; S.yearSortDir = 1; }
+  renderYearSection(type, type === 'expense' ? 'year-expense-container' : 'year-income-container');
+}
+
+function yearSortIndicator(key) {
+  if (S.yearSortKey !== key) return '';
+  return S.yearSortDir === 1 ? ' <span style="color:var(--accent)">▲</span>' : ' <span style="color:var(--accent)">▼</span>';
+}
+
 function renderYearSection(type, containerId) {
   const container=document.getElementById(containerId);
   const yearTx=S.transactions.filter(t=>t.type===type&&t.date.startsWith(String(S.viewYear)));
@@ -1306,6 +1540,9 @@ function renderYearSection(type, containerId) {
   yearTx.forEach(t=>{const m=parseInt(t.date.substring(5,7));if(!idx[m])idx[m]={};idx[m][t.category]=(idx[m][t.category]||0)+t.amount;});
   const catTotals={};
   cats.forEach(c=>{catTotals[c]=yearTx.filter(t=>t.category===c).reduce((s,t)=>s+t.amount,0);});
+  // сортировка по выбранному ключу
+  if (S.yearSortKey === 'name') cats.sort((a,b)=>a.localeCompare(b, 'ru')*S.yearSortDir);
+  else if (S.yearSortKey === 'total') cats.sort((a,b)=>(catTotals[a]-catTotals[b])*S.yearSortDir);
   const monthTotals={};
   monthsPresent.forEach(m=>{monthTotals[m]=Object.values(idx[m]||{}).reduce((s,v)=>s+v,0);});
   const grandTotal=yearTx.reduce((s,t)=>s+t.amount,0);
@@ -1313,8 +1550,8 @@ function renderYearSection(type, containerId) {
   const prevGrandAvg=prevGrandTotal/(monthsPresent.length||1);
 
   let html=`<div class="year-table-wrap"><table class="year-table"><thead><tr>
-    <th>Категория</th>
-    <th>Итого</th><th>Среднее</th><th>Доля</th><th>Ср. ${prevYear}</th><th>Δ%</th>
+    <th onclick="setYearSort('${type}','name')" style="cursor:pointer;user-select:none">Категория${yearSortIndicator('name')}</th>
+    <th onclick="setYearSort('${type}','total')" style="cursor:pointer;user-select:none">Итого${yearSortIndicator('total')}</th><th>Среднее</th><th>Доля</th><th>Ср. ${prevYear}</th><th>Δ%</th>
     ${monthsPresent.map(m=>`<th>${MONTH_NAMES[m-1]}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1419,7 +1656,7 @@ function renderDynamics() {
     const monthEnd=`${ky}-${km}-${pad(new Date(parseInt(ky),parseInt(km),0).getDate())}`;
     const cutoff=monthEnd<today?monthEnd:today;
     const cap=calcCapital(cutoff);
-    return cap>0?cap:null;
+    return cap;
   });
 
   const ctx=document.getElementById('chart-dynamics').getContext('2d');
@@ -1480,17 +1717,26 @@ function renderCategoryChips() {
 }
 function selectCategory(name){S.selectedCategory=name;renderCategoryChips();}
 
+// Парсинг суммы с учётом запятой как десятичного разделителя
+// и арифметических выражений вида "15,5+20,6". Вернёт число или null.
+function parseAmountExpr(raw) {
+  const safe = raw.replace(/,/g,'.').replace(/[^0-9+\-*/().]/g,'');
+  if (!safe) return null;
+  try {
+    const v = Function('"use strict";return ('+safe+')')();
+    if (typeof v==='number' && isFinite(v)) return v;
+  } catch(e) {}
+  return null;
+}
+
 function calcAmount() {
   const val=document.getElementById('input-amount').value.trim();
   const hint=document.getElementById('calc-hint');
   if(!val){hint.textContent='';return;}
-  try {
-    const safe=val.replace(/[^0-9+\-*/().]/g,'');
-    const result=Function('"use strict";return ('+safe+')')();
-    if(typeof result==='number'&&isFinite(result)&&val.match(/[+\-*/]/)){
-      hint.textContent='= '+fmt(result);
-    } else { hint.textContent=''; }
-  } catch(e){hint.textContent='';}
+  const result=parseAmountExpr(val);
+  if(result!==null&&val.match(/[+\-*/,]/)){
+    hint.textContent='= '+fmt(result);
+  } else { hint.textContent=''; }
 }
 
 async function submitTransaction() {
@@ -1499,9 +1745,9 @@ async function submitTransaction() {
   const comment=document.getElementById('input-comment').value;
   if(!date)return showToast('Укажите дату','error');
   if(!amountRaw)return showToast('Укажите сумму','error');
-  let amount;
-  try { amount=Function('"use strict";return ('+amountRaw.replace(',','.').replace(/[^0-9+\-*/().]/g,'')+')')(); } catch(e){return showToast('Неверная сумма','error');}
-  if(!amount||amount<=0)return showToast('Сумма должна быть больше 0','error');
+  const amount=parseAmountExpr(amountRaw);
+  if(amount===null)return showToast('Неверная сумма','error');
+  if(!amount)return showToast('Сумма не может быть 0','error');
   if(!S.selectedCategory)return showToast('Выберите категорию','error');
   try {
     await apiPost({action:'addTransaction',date,type:S.currentType,category:S.selectedCategory,amount,comment});
@@ -1533,7 +1779,7 @@ function renderHistory() {
     <div class="tx-item" onclick="openEditTx(${t._rowIndex})">
       <div class="tx-left"><div class="tx-cat">${t.category}</div><div class="tx-meta">${fmtDate(t.date)}${t.comment?' · '+t.comment:''}</div></div>
       <div class="tx-right">
-        <div class="tx-amount ${t.type}">${t.type==='income'?'+':'−'}${fmt(t.amount)}</div>
+        <div class="tx-amount ${t.type}">${t.amount<0?fmt(t.amount):(t.type==='income'?'+':'−')+fmt(t.amount)}</div>
         <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
       </div>
     </div>`).join('')+'</div>';}
@@ -1606,13 +1852,10 @@ function editCalcAmount() {
   const val = document.getElementById('edit-amount').value.trim();
   const hint = document.getElementById('edit-calc-hint');
   if (!val) { hint.textContent = ''; return; }
-  try {
-    const safe = val.replace(/[^0-9+\-*/().]/g, '');
-    const result = Function('"use strict";return (' + safe + ')')();
-    if (typeof result === 'number' && isFinite(result) && val.match(/[+\-*/]/)) {
-      hint.textContent = '= ' + fmt(result);
-    } else { hint.textContent = ''; }
-  } catch(e) { hint.textContent = ''; }
+  const result = parseAmountExpr(val);
+  if (result !== null && val.match(/[+\-*/,]/)) {
+    hint.textContent = '= ' + fmt(result);
+  } else { hint.textContent = ''; }
 }
 
 async function saveEditTx() {
@@ -1621,10 +1864,9 @@ async function saveEditTx() {
   const comment = document.getElementById('edit-comment').value;
   if (!date) return showToast('Укажите дату', 'error');
   if (!amountRaw) return showToast('Укажите сумму', 'error');
-  let amount;
-  try { amount = Function('"use strict";return (' + amountRaw.replace(',','.').replace(/[^0-9+\-*/().]/g,'') + ')')(); }
-  catch(e) { return showToast('Неверная сумма', 'error'); }
-  if (!amount || amount <= 0) return showToast('Сумма должна быть больше 0', 'error');
+  const amount = parseAmountExpr(amountRaw);
+  if (amount === null) return showToast('Неверная сумма', 'error');
+  if (!amount) return showToast('Сумма не может быть 0', 'error');
   if (!S.editCategory) return showToast('Выберите категорию', 'error');
   try {
     await apiPost({
@@ -1783,30 +2025,33 @@ function renderBalanceChart() {
   const snapFilter = document.getElementById('snapshot-filter');
   const isHistory = S.balanceFilter === 'history';
   snapFilter.style.display = isHistory ? '' : 'none';
+  // чипсы блоков/счетов — во всех режимах
+  renderSnapBlockChips();
+  renderSnapAccountChips();
   if (isHistory) {
-    renderSnapBlockChips();
-    renderSnapAccountChips();
     const inp = document.getElementById('snap-years');
     if (inp) inp.disabled = S.snapMonths === 0;
   }
 
   if(S.balanceFilter==='type') {
     const blocks=showPassives?BLOCK_ORDER:BLOCK_ORDER.filter(b=>b!=='passive');
+    const activeBlocks=blocks.filter(b=>S.snapBlocks.includes(b));
     const totals={};
-    blocks.forEach(b=>{totals[b]=0;});
+    activeBlocks.forEach(b=>{totals[b]=0;});
     S.positions.forEach(p=>{
-      if(!blocks.includes(p.block))return;
+      if(!activeBlocks.includes(p.block))return;
+      if(S.snapAccounts.length&&!S.snapAccounts.includes(p.account||'Без счёта'))return;
       const latest=getLatestAsset(p.id,null);
       if(latest) totals[p.block]=(totals[p.block]||0)+latest.amount;
     });
-    const grandTotal=blocks.reduce((s,b)=>s+totals[b],0);
+    const grandTotal=activeBlocks.reduce((s,b)=>s+totals[b],0);
     if(!grandTotal){container.innerHTML='<div class="empty">Нет данных</div>';return;}
 
     let html='';
-    blocks.forEach(block=>{
+    activeBlocks.forEach(block=>{
       const total=totals[block];
       const pct=grandTotal?(total/grandTotal*100):0;
-      const positions=activePos().filter(p=>p.block===block&&(showPassives||p.block!=='passive'));
+      const positions=activePos().filter(p=>p.block===block&&(showPassives||p.block!=='passive')&&(!S.snapAccounts.length||S.snapAccounts.includes(p.account||'Без счёта')));
       const hasPos=positions.some(p=>getLatestAsset(p.id,null));
       html+=`<div class="bal-bar-row">
         <div class="bal-bar-header" onclick="toggleBalPositions('bal-pos-${block}')">
@@ -1843,13 +2088,15 @@ function renderBalanceChart() {
     container.innerHTML=html;
 
   } else if(S.balanceFilter==='account') {
-    const accounts=[...new Set(S.positions.map(p=>p.account||'Без счёта'))];
+    const accounts=[...new Set(S.positions.map(p=>p.account||'Без счёта'))].filter(a=>S.snapAccounts.includes(a));
     const accountTotals={};
     accounts.forEach(a=>{accountTotals[a]=0;});
     S.positions.forEach(p=>{
+      if(!S.snapBlocks.includes(p.block))return;
       if(p.block==='passive'&&!(S.settings.show_passives==='true'))return;
       const latest=getLatestAsset(p.id,null);
       const acc=p.account||'Без счёта';
+      if(!accounts.includes(acc))return;
       if(latest) accountTotals[acc]=(accountTotals[acc]||0)+latest.amount;
     });
     const grandTotal=Object.values(accountTotals).reduce((s,v)=>s+v,0);
@@ -1862,7 +2109,7 @@ function renderBalanceChart() {
       if(!total)return;
       const pct=grandTotal?(total/grandTotal*100):0;
       const color=accColors[i%accColors.length];
-      const positions=activePos().filter(p=>(p.account||'Без счёта')===acc);
+      const positions=activePos().filter(p=>(p.account||'Без счёта')===acc&&S.snapBlocks.includes(p.block));
       html+=`<div class="bal-bar-row">
         <div class="bal-bar-header" onclick="toggleBalPositions('bal-acc-${i}')">
           <div class="bal-bar-label">
@@ -2070,6 +2317,7 @@ function renderPositionsList() {
 
 function renderAssetSelect() {
   const sel=document.getElementById('asset-position');
+  if(!sel) return;
   sel.innerHTML='<option value="">— выберите —</option>'+
     S.positions.map(p=>`<option value="${p.id}">${p.name}${p.account?' ('+p.account+')':''}</option>`).join('');
 }
@@ -2103,37 +2351,163 @@ async function deletePosition(id) {
   catch(e){showToast('Ошибка','error');}
 }
 
-// Рендерим список всех позиций с полями суммы
+// Рендерим форму ввода активов, сгруппированную по (тип × счёт)
+function assetGroupKey(block, account) { return block + '|' + (account || ''); }
+
+function getAssetGroupOrder() {
+  try { return JSON.parse(localStorage.getItem('asset_group_order') || '[]'); }
+  catch(e) { return []; }
+}
+function saveAssetGroupOrder(order) { localStorage.setItem('asset_group_order', JSON.stringify(order)); }
+
+function getAssetGroupSort(key) { return localStorage.getItem('asset_group_sort_' + key) || 'order'; }
+function saveAssetGroupSort(key, v) { localStorage.setItem('asset_group_sort_' + key, v); }
+
+function assetGroups() {
+  const groups = {};
+  activePos().forEach(p => {
+    const key = assetGroupKey(p.block, p.account);
+    if (!groups[key]) groups[key] = { key, block: p.block, account: p.account || '', positions: [] };
+    groups[key].positions.push(p);
+  });
+  return Object.values(groups);
+}
+
+let assetGroupDragKey = null;
+function assetGroupDragStart(e, key) {
+  assetGroupDragKey = key;
+  e.dataTransfer.setData('text/plain', key);
+  const g = e.target.closest('.asset-group');
+  if (g) g.classList.add('dragging');
+}
+function assetGroupDragEnd(e) {
+  const g = e.target.closest('.asset-group');
+  if (g) g.classList.remove('dragging');
+  assetGroupDragKey = null;
+}
+function assetGroupDrop(e, key) {
+  e.preventDefault();
+  const from = assetGroupDragKey || e.dataTransfer.getData('text/plain');
+  if (!from || from === key) return;
+  const groups = assetGroups();
+  let order = getAssetGroupOrder();
+  groups.forEach(g => { if (order.indexOf(g.key) === -1) order.push(g.key); });
+  order = order.filter(k => k !== from);
+  const idx = order.indexOf(key);
+  if (idx < 0) return;
+  order.splice(idx, 0, from);
+  saveAssetGroupOrder(order);
+  renderAssetInputList();
+}
+function moveAssetGroup(key, dir) {
+  const groups = assetGroups();
+  let order = getAssetGroupOrder();
+  groups.forEach(g => { if (order.indexOf(g.key) === -1) order.push(g.key); });
+  const i = order.indexOf(key);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
+  saveAssetGroupOrder(order);
+  renderAssetInputList();
+}
+function setAssetGroupSort(key, v) { saveAssetGroupSort(key, v); renderAssetInputList(); }
+
+// Живое превью «= N ₽» под полем суммы
+function calcAssetPreview(posId) {
+  const input = document.getElementById('asset-input-' + posId);
+  const hint = document.getElementById('asset-hint-' + posId);
+  if (!input || !hint) return;
+  const val = input.value.trim();
+  if (!val) { hint.textContent = ''; return; }
+  const n = parseAmountExpr(val);
+  if (n !== null && val.match(/[+\-*/,]/)) hint.textContent = '= ' + fmt(n);
+  else hint.textContent = '';
+}
+
+// Masonry-раскладка: блоки не растягиваются на весь экран.
+// Группы раскладываются по колонкам, чтобы высоты колонок были примерно равны:
+// большой блок стоит сам, рядом с ним докладываются мелкие, пока не сравняются.
+function balanceAssetColumns(groups) {
+  // сколько колонок: на мобилке 1, на десктопе 2
+  const w = (typeof window !== 'undefined' && window.innerWidth) || 900;
+  const numCols = w < 640 ? 1 : 2;
+  if (numCols === 1) return [groups];
+
+  const cols = Array.from({ length: numCols }, () => ({ height: 0, groups: [] }));
+  groups.forEach(g => {
+    // добавляем в самую низкую колонку
+    const target = cols.reduce((min, c) => c.height < min.height ? c : min);
+    target.groups.push(g);
+    target.height += g.positions.length;
+  });
+  return cols.filter(c => c.groups.length).map(c => c.groups);
+}
+
 function renderAssetInputList() {
   const el = document.getElementById('asset-input-list');
   if (!S.positions.length) { el.innerHTML = '<div class="empty">Нет позиций. Добавьте в Настройках.</div>'; return; }
   const date = document.getElementById('asset-date').value;
+  const groups = assetGroups();
 
-  // на ПК — две колонки, на мобилке — одна
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 24px">';
+  let order = getAssetGroupOrder();
+  groups.forEach(g => { if (order.indexOf(g.key) === -1) order.push(g.key); });
+  order = order.filter(k => groups.some(g => g.key === k));
+  saveAssetGroupOrder(order);
+  groups.sort((a,b) => order.indexOf(a.key) - order.indexOf(b.key));
 
-  BLOCK_ORDER.forEach(block => {
-    const positions = activePos().filter(p => p.block === block);
-    if (!positions.length) return;
-    html += `<div style="grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text2);margin:10px 0 4px;border-top:1px solid var(--border);padding-top:10px">${BLOCK_LABELS[block]}</div>`;
-    positions.forEach(p => {
-      const latest = getLatestAsset(p.id, date || null);
-      const currentVal = latest ? latest.amount : '';
-      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <div style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${p.name}">
-          ${p.name}${p.account ? `<span style="color:var(--text2);font-size:11px"> · ${p.account}</span>` : ''}
+  let html = '<div class="asset-groups">';
+  balanceAssetColumns(groups).forEach(col => {
+    html += '<div class="asset-col">';
+    col.forEach(g => {
+      const gi = order.indexOf(g.key);
+      const sort = getAssetGroupSort(g.key);
+      const positions = [...g.positions];
+      if (sort === 'name') positions.sort((a,b) => a.name.localeCompare(b.name, 'ru'));
+      else if (sort === 'sum') positions.sort((a,b) => (getLatestAsset(b.id, date||null)?.amount || 0) - (getLatestAsset(a.id, date||null)?.amount || 0));
+
+      let filled = 0;
+      const items = positions.map(p => {
+        const latest = getLatestAsset(p.id, date || null);
+        const currentVal = latest ? latest.amount : '';
+        if (currentVal !== '') filled++;
+        return `<div class="asset-pos">
+          <div class="asset-pos-row">
+            <div class="asset-pos-name" title="${p.name}">${p.name}${p.account ? `<span> · ${p.account}</span>` : ''}</div>
+            <input type="text" class="form-input asset-pos-input ${currentVal === '' ? 'empty' : ''}"
+              id="asset-input-${p.id}" data-pos-id="${p.id}" data-orig-amount="${currentVal}"
+              placeholder="сумма" value="${currentVal}"
+              oninput="calcAssetPreview('${p.id}');this.classList.remove('empty')"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();saveOneAsset('${p.id}');}">
+          </div>
+          <div class="asset-pos-hint" id="asset-hint-${p.id}"></div>
+        </div>`;
+      }).join('');
+
+      const label = `${BLOCK_LABELS[g.block] || g.block}${g.account ? ' · ' + g.account : ''}`;
+      html += `<div class="asset-group" data-group="${g.key}"
+          ondragover="event.preventDefault()" ondrop="assetGroupDrop(event,'${g.key}')">
+        <div class="asset-group-head">
+          <div class="asset-group-title" draggable="true"
+            ondragstart="assetGroupDragStart(event,'${g.key}')" ondragend="assetGroupDragEnd(event)"
+            title="Перетащите, чтобы поменять порядок групп">${label}</div>
+          <div class="asset-group-right">
+            <span class="asset-group-count">${filled}/${g.positions.length}</span>
+            <button class="asset-move-btn" ${gi === 0 ? 'disabled' : ''} onclick="moveAssetGroup('${g.key}',-1)">◀</button>
+            <button class="asset-move-btn" ${gi === groups.length-1 ? 'disabled' : ''} onclick="moveAssetGroup('${g.key}',1)">▶</button>
+          </div>
         </div>
-        <input type="text" class="form-input" style="width:110px;padding:5px 8px;font-size:13px;flex-shrink:0"
-          id="asset-input-${p.id}"
-          data-pos-id="${p.id}"
-          data-orig-amount="${currentVal}"
-          placeholder="сумма"
-          value="${currentVal}"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();saveOneAsset('${p.id}');}">
+        <div class="asset-group-sort">
+          <select onchange="setAssetGroupSort('${g.key}',this.value)">
+            <option value="order" ${sort==='order'?'selected':''}>мой порядок</option>
+            <option value="name" ${sort==='name'?'selected':''}>по имени</option>
+            <option value="sum" ${sort==='sum'?'selected':''}>по сумме</option>
+          </select>
+        </div>
+        ${items}
       </div>`;
     });
+    html += '</div>';
   });
-
   html += '</div>';
   el.innerHTML = html;
 }
@@ -2146,10 +2520,9 @@ async function saveOneAsset(positionId) {
   if (!input) return;
   const raw = input.value.trim();
   if (!raw) return;
-  let amount;
-  try { amount = Function('"use strict";return (' + raw.replace(',','.').replace(/[^0-9+\-*/().]/g,'') + ')')(); }
-  catch(e) { return showToast('Неверная сумма', 'error'); }
-  if (isNaN(amount) || amount < 0) return showToast('Неверная сумма', 'error');
+  const amount = parseAmountExpr(raw);
+  if (amount === null) return showToast('Неверная сумма', 'error');
+  if (amount < 0) return showToast('Неверная сумма', 'error');
 
   try {
     await saveAssetSmart(date, positionId, amount);
@@ -2185,26 +2558,51 @@ async function submitAllAssets() {
     if (!input) continue;
     const raw = input.value.trim();
     if (!raw) continue;
-    let amount;
-    try { amount = Function('"use strict";return (' + raw.replace(',','.').replace(/[^0-9+\-*/().]/g,'') + ')')(); }
-    catch(e) { continue; }
-    if (isNaN(amount) || amount < 0) continue;
+    const amount = parseAmountExpr(raw);
+    if (amount === null || amount < 0) continue;
     tasks.push({ positionId: p.id, amount });
   }
-
   if (!tasks.length) return showToast('Нет данных для сохранения', 'error');
 
-  try {
-    // сохраняем последовательно чтобы не гонять параллельные запросы к одному листу
-    let saved = 0;
-    for (const t of tasks) {
+  // Сначала пробуем балк-эндпоинт (1 запрос вместо N).
+  // Если скрипт старый (нет saveAssetsBulk) — ловим ошибку и сохраняем по одному.
+  const bulkFailed = getUnsupportedFlag('assets_bulk_unsupported');
+  if (!bulkFailed) {
+    try {
+      const res = await apiPost({
+        action: 'saveAssetsBulk',
+        assets: tasks.map(t => ({ date, position_id: t.positionId, amount: t.amount })),
+      });
+      if (res && res.success !== false) {
+        clearUnsupportedFlag('assets_bulk_unsupported');
+        showToast(`Сохранено ${res.saved || tasks.length} позиций`, 'success');
+        await loadAssets();
+        renderAssetInputList();
+        return;
+      }
+    } catch(e) {
+      // непонимание action или таймаут — переходим на поштучное
+      setUnsupportedFlag('assets_bulk_unsupported');
+    }
+  }
+
+  // Фолбек: последовательное сохранение; одна ошибка не прерывает остальные
+  let saved = 0;
+  const failed = [];
+  for (const t of tasks) {
+    try {
       await saveAssetSmart(date, t.positionId, t.amount);
       saved++;
-    }
-    showToast(`Сохранено ${saved} позиций`, 'success');
-    await loadAssets();
-    renderAssetInputList();
-  } catch(e) { showToast('Ошибка: ' + e.message, 'error'); }
+    } catch(e) { failed.push(t.positionId); }
+  }
+  failed.forEach(id => {
+    const inp = document.getElementById(`asset-input-${id}`);
+    if (inp) inp.style.borderColor = 'var(--danger)';
+  });
+  if (failed.length) showToast(`Сохранено ${saved}, ошибок: ${failed.length}`, 'error');
+  else showToast(`Сохранено ${saved} позиций`, 'success');
+  await loadAssets();
+  renderAssetInputList();
 }
 
 
@@ -2219,6 +2617,8 @@ function saveUrl(){
   S.apiUrl = url;
   S.isDemo = false;
   localStorage.removeItem('demo_mode');
+  clearUnsupportedFlag('get_all_unsupported');
+  clearUnsupportedFlag('assets_bulk_unsupported');
   showToast('URL сохранён','success');
   updateDemoBanner();
   loadAll();
