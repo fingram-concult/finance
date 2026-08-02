@@ -456,7 +456,7 @@
         <input type="text" class="form-input" id="input-comment" placeholder="Заметка...">
       </div>
       <div class="form-group full">
-        <button class="btn btn-primary" onclick="submitTransaction()">Сохранить</button>
+        <button class="btn btn-primary" id="btn-save" onclick="submitTransaction()">Сохранить</button>
       </div>
     </div>
   </div>
@@ -1741,6 +1741,8 @@ function calcAmount() {
   } else { hint.textContent=''; }
 }
 
+function safeRender(fn) { try { fn(); } catch(e) { console.error(e); } }
+
 async function submitTransaction() {
   const date=document.getElementById('input-date').value;
   const amountRaw=document.getElementById('input-amount').value.trim();
@@ -1751,15 +1753,22 @@ async function submitTransaction() {
   if(amount===null)return showToast('Неверная сумма','error');
   if(!amount)return showToast('Сумма не может быть 0','error');
   if(!S.selectedCategory)return showToast('Выберите категорию','error');
+  const btn=document.getElementById('btn-save');
+  if(btn)btn.disabled=true;
   try {
     await apiPost({action:'addTransaction',date,type:S.currentType,category:S.selectedCategory,amount,comment});
+    // Мгновенный локальный рендер: запись появляется сразу, без перекачки всей истории
+    const newRow = S.transactions.length ? Math.max(...S.transactions.map(t=>t._rowIndex))+1 : 2;
+    S.transactions.push({date,type:S.currentType,category:S.selectedCategory,amount,comment,_rowIndex:newRow});
     showToast('Сохранено','success');
     document.getElementById('input-amount').value='';
     document.getElementById('input-comment').value='';
     document.getElementById('calc-hint').textContent='';
     S.selectedCategory=''; renderCategoryChips();
-    await loadTransactions();
+    updateCacheAfter('transactions');
+    safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
   } catch(e){showToast('Ошибка сохранения','error');}
+  finally { if(btn)btn.disabled=false; }
 }
 
 // ============================================================
@@ -1796,7 +1805,16 @@ function renderHistory() {
 async function deleteTx(rowIndex) {
   if (S.isDemo) return showToast('В демо-режиме редактирование недоступно', 'error');
   if(!confirm('Удалить транзакцию?'))return;
-  try{await apiPost({action:'deleteTransaction',rowIndex});showToast('Удалено','success');await loadTransactions();}
+  try{
+    await apiPost({action:'deleteTransaction',rowIndex});
+    // Мгновенный локальный рендер: убираем запись и сдвигаем rowIndex ниже
+    S.transactions = S.transactions
+      .filter(t=>t._rowIndex!==rowIndex)
+      .map(t=>t._rowIndex>rowIndex?{...t,_rowIndex:t._rowIndex-1}:t);
+    showToast('Удалено','success');
+    updateCacheAfter('transactions');
+    safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
+  }
   catch(e){showToast('Ошибка','error');}
 }
 
@@ -1877,8 +1895,12 @@ async function saveEditTx() {
       date, type: S.editType, category: S.editCategory, amount, comment
     });
     showToast('Сохранено', 'success');
+    // Мгновенный локальный рендер без перекачки всей истории
+    S.transactions = S.transactions.map(t => t._rowIndex === _editRowIndex
+      ? { ...t, date, type: S.editType, category: S.editCategory, amount, comment } : t);
     closeEditTx();
-    await loadTransactions();
+    updateCacheAfter('transactions');
+    safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
   } catch(e) { showToast('Ошибка', 'error'); }
 }
 
@@ -1887,8 +1909,13 @@ async function deleteEditTx() {
   try {
     await apiPost({ action: 'deleteTransaction', rowIndex: _editRowIndex });
     showToast('Удалено', 'success');
+    // Мгновенный локальный рендер: убираем запись и сдвигаем rowIndex ниже
+    S.transactions = S.transactions
+      .filter(t => t._rowIndex !== _editRowIndex)
+      .map(t => t._rowIndex > _editRowIndex ? { ...t, _rowIndex: t._rowIndex - 1 } : t);
     closeEditTx();
-    await loadTransactions();
+    updateCacheAfter('transactions');
+    safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
   } catch(e) { showToast('Ошибка', 'error'); }
 }
 
