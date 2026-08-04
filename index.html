@@ -303,7 +303,7 @@
 <body>
 
 <nav class="nav">
-  <div class="nav-title">Финансы</div>
+  <div class="nav-title" style="cursor:pointer;user-select:none" onclick="showPage('dashboard')">Финансы</div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard')">Месяц</button>
     <button class="nav-tab" onclick="showPage('year')">Год</button>
@@ -946,7 +946,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (realUrl) document.getElementById('settings-url').value = realUrl;
   updateDemoBanner();
   showReleaseBanner();
-  showPage('dashboard');
+  // восстанавливаем вкладку, где пользователь был до обновления страницы
+  let startPage = 'dashboard';
+  try { const saved = sessionStorage.getItem('active_page'); if (saved) startPage = saved; } catch(e) {}
+  showPage(startPage);
   loadAll();
   if (!localStorage.getItem('tour_seen')) {
     setTimeout(showTour, 500);
@@ -1072,7 +1075,7 @@ function applyAllData(data) {
   applySettings();
   renderCategoryChips(); renderSettingsCategories();
   renderAssetSelect(); renderPositionsList();
-  renderBalance();
+  renderBalance(); renderAssetInputList();
   if (S.transactions.length) {
     renderDashboard(); renderYearTable(); renderDynamics(); renderHistory();
   }
@@ -1272,7 +1275,7 @@ async function loadAssets() {
     const r = await apiGet({action:'getAssets'});
     S.assets = (r.data||[]).map(a=>({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
     updateCacheAfter('assets');
-    renderBalance();
+    renderBalance(); renderAssetInputList();
     renderDashboard();
   } catch(e){ errToast(e, 'активов'); }
 }
@@ -1281,7 +1284,7 @@ async function loadPositions() {
     const r = await apiGet({action:'getPositions'});
     S.positions = (r.data||[]).map(p=>({...p, active: p.active !== false}));
     updateCacheAfter('positions');
-    renderAssetSelect(); renderPositionsList(); renderBalance();
+    renderAssetSelect(); renderPositionsList(); renderBalance(); renderAssetInputList();
   } catch(e){ errToast(e, 'позиций'); }
 }
 async function loadSettings() {
@@ -2691,6 +2694,12 @@ function showPage(name){
   // шестерёнка — подсвечиваем отдельно
   const gear=document.querySelector('.nav-gear');
   if(gear) gear.style.color=name==='settings'?'var(--accent)':'';
+
+  // Виртуальная страница для Яндекс Метрики: разделы видны в отчётах отдельно
+  try { if (typeof ym === 'function') ym(110540800, 'hit', '/page/' + name); } catch(e) {}
+
+  // запоминаем активную вкладку, чтобы после обновления страницы вернуться на неё
+  try { sessionStorage.setItem('active_page', name); } catch(e) {}
 
   if(name==='balance'){renderBalance();renderAssetInputList();}
   if(name==='settings'){renderSettingsCategories();renderPositionsList();}
