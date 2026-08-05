@@ -2705,7 +2705,7 @@ function showPage(name){
   if(gear) gear.style.color=name==='settings'?'var(--accent)':'';
 
   // Виртуальная страница для Яндекс Метрики: разделы видны в отчётах отдельно
-  try { if (typeof ym === 'function') ym(110540800, 'hit', '/page/' + name, { title: METRIKA_TITLES[name] || name }); } catch(e) {}
+  try { if (typeof ym === 'function') ym(110540800, 'hit', '/finance/page/' + name, { title: METRIKA_TITLES[name] || name }); } catch(e) {}
 
   // запоминаем активную вкладку, чтобы после обновления страницы вернуться на неё
   try { sessionStorage.setItem('active_page', name); } catch(e) {}
