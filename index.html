@@ -656,14 +656,17 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Расчёт капитала</div>
-    <select class="form-input" id="setting-capital" onchange="saveSetting('capital_calculation',this.value)">
-      <option value="investment_only">Только портфель (облигации + акции)</option>
-      <option value="with_cushion">Портфель + подушка</option>
-      <option value="with_accounts">Портфель + подушка + текущие счета</option>
-      <option value="all_assets">Все активы</option>
-      <option value="net">Все активы минус пассивы</option>
-    </select>
+    <div class="card-title">Расчёт капитала по группам</div>
+    <div id="capital-groups" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <label class="capital-chip" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" value="account" onchange="saveCapitalSetting()"> Текущие счета</label>
+      <label class="capital-chip" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" value="cushion" onchange="saveCapitalSetting()"> Подушка</label>
+      <label class="capital-chip" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" value="bonds" onchange="saveCapitalSetting()"> Облигации</label>
+      <label class="capital-chip" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" value="stocks" onchange="saveCapitalSetting()"> Акции</label>
+      <label class="capital-chip" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" value="other" onchange="saveCapitalSetting()"> Прочее</label>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2)">
+      <input type="checkbox" id="capital-subtract-passives" onchange="saveCapitalSetting()"> Вычитать пассивы
+    </label>
   </div>
   <div class="card">
     <div class="card-title">Показывать пассивы</div>
@@ -1301,7 +1304,7 @@ async function loadAccounts() {
 }
 function applySettings() {
   const g = id => document.getElementById(id);
-  if (S.settings.capital_calculation) g('setting-capital').value = S.settings.capital_calculation;
+  renderCapitalSetting();
   if (S.settings.show_passives) g('setting-passives').value = S.settings.show_passives;
   if (S.settings.passive_income_categories) g('setting-passive-income').value = S.settings.passive_income_categories;
 }
@@ -2666,6 +2669,61 @@ async function saveSetting(key,value){
   try{await apiPost({action:'updateSettings',key,value});S.settings[key]=value;renderBalance();renderDashboard();}
   catch(e){showToast('Ошибка','error');}
 }
+
+// === Гибкий расчёт капитала по группам ===
+// Формат хранения: JSON строка {groups:[...], subtractPassives:bool}.
+// Обратная совместимость: старые строковые значения (investment_only и т.д.)
+// тоже распознаются конвертацией в группы.
+function parseCapitalCfg(raw) {
+  const activeBlocks = BLOCK_ORDER.filter(b => b !== 'passive');
+  if (!raw) return { groups: ['bonds','stocks'], subtractPassives: false };
+  // новый формат — JSON
+  try {
+    const o = JSON.parse(raw);
+    if (o && Array.isArray(o.groups)) {
+      return { groups: o.groups.filter(g => activeBlocks.includes(g)),
+               subtractPassives: !!o.subtractPassives };
+    }
+  } catch(e) {}
+  // старый формат — строки
+  const investB=['bonds','stocks'], cushB=['cushion'], accB=['account'];
+  const map = {
+    investment_only: { groups: investB, subtractPassives: false },
+    with_cushion:    { groups: [...investB, ...cushB], subtractPassives: false },
+    with_accounts:   { groups: [...investB, ...cushB, ...accB], subtractPassives: false },
+    all_assets:      { groups: activeBlocks, subtractPassives: false },
+    net:             { groups: activeBlocks, subtractPassives: true },
+  };
+  return map[raw] || { groups: ['bonds','stocks'], subtractPassives: false };
+}
+function serializeCapitalCfg(groups, subtractPassives) {
+  const activeBlocks = BLOCK_ORDER.filter(b => b !== 'passive');
+  const g = groups.filter(x => activeBlocks.includes(x));
+  return JSON.stringify({ groups: g, subtractPassives: !!subtractPassives });
+}
+function getCapitalCfg() {
+  const boxes = document.querySelectorAll('#capital-groups input[type=checkbox]');
+  const groups = [...boxes].filter(b => b.checked).map(b => b.value);
+  const subtract = document.getElementById('capital-subtract-passives');
+  return { groups, subtractPassives: !!(subtract && subtract.checked) };
+}
+function renderCapitalSetting() {
+  const cfg = parseCapitalCfg(S.settings.capital_calculation);
+  document.querySelectorAll('#capital-groups input[type=checkbox]').forEach(b => {
+    b.checked = cfg.groups.includes(b.value);
+  });
+  const sub = document.getElementById('capital-subtract-passives');
+  if (sub) sub.checked = cfg.subtractPassives;
+}
+async function saveCapitalSetting() {
+  const cfg = getCapitalCfg();
+  const value = serializeCapitalCfg(cfg.groups, cfg.subtractPassives);
+  try {
+    await apiPost({action:'updateSettings',key:'capital_calculation',value});
+    S.settings.capital_calculation = value;
+    renderBalance(); renderDashboard(); renderDynamics();
+  } catch(e) { showToast('Ошибка','error'); }
+}
 function renderSettingsCategories(){
   const el=document.getElementById('settings-categories');if(!el)return;
   if(!S.categories.length){el.innerHTML='<div class="empty">Нет категорий</div>';return;}
@@ -2732,10 +2790,8 @@ function showPage(name){
 // ============================================================
 function calcCapital(cutoff) {
   if(!S.positions.length)return 0;
-  const setting=S.settings.capital_calculation||'investment_only';
-  const investBlocks=['bonds','stocks'];
-  const cushionBlocks=['cushion'];
-  const accountBlocks=['account'];
+  const cfg=parseCapitalCfg(S.settings.capital_calculation||'');
+  const includeGroups=cfg.groups;
   // для капитала используем все позиции (включая неактивные) — чтобы история была честной
   // но для текущего баланса (cutoff=null) — только активные
   const posToUse = cutoff ? S.positions : activePos();
@@ -2743,16 +2799,14 @@ function calcCapital(cutoff) {
   let total=0;
   posToUse.forEach(p=>{
     if(p.block==='passive')return;
+    if(!includeGroups.length)return;
+    if(!includeGroups.includes(p.block))return;
     const latest=getLatestAsset(p.id,cutoff);
     if(!latest)return;
-    if(setting==='investment_only'&&investBlocks.includes(p.block)) total+=latest.amount;
-    else if(setting==='with_cushion'&&[...investBlocks,...cushionBlocks].includes(p.block)) total+=latest.amount;
-    else if(setting==='with_accounts'&&[...investBlocks,...cushionBlocks,...accountBlocks].includes(p.block)) total+=latest.amount;
-    else if(setting==='all_assets') total+=latest.amount;
-    else if(setting==='net') total+=latest.amount;
+    total+=latest.amount;
   });
 
-  if(setting==='net'){
+  if(cfg.subtractPassives){
     posToUse.filter(p=>p.block==='passive').forEach(p=>{
       const latest=getLatestAsset(p.id,cutoff);
       if(latest) total-=latest.amount;
