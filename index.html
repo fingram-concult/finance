@@ -49,11 +49,6 @@
     .demo-banner-text { flex: 1; color: var(--text); }
     .demo-banner-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; font-size: 12px; white-space: nowrap; }
     .demo-banner-btn:hover { background: var(--accent); color: #fff; }
-    .release-banner { display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 99; padding: 8px 16px; background: #1b2f6b; border-bottom: 1px solid var(--accent); font-size: 13px; }
-    .release-banner-text { flex: 1; color: var(--text); font-size: 12px; line-height: 1.4; }
-    .release-banner-text b { color: var(--accent); }
-    .release-banner-close { background: transparent; border: none; color: var(--text2); cursor: pointer; font-size: 16px; padding: 2px 6px; }
-    .release-banner-close:hover { color: var(--text); }
 
     /* TOUR */
     .tour-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
@@ -321,14 +316,6 @@
   <span class="demo-banner-icon">🧪</span>
   <span class="demo-banner-text" id="demo-banner-text"></span>
   <button class="demo-banner-btn" id="demo-banner-action"></button>
-</div>
-
-<!-- Релиз-нот: показывается один раз после обновления приложения -->
-<div class="release-banner" id="release-banner" style="display:none">
-  <span class="demo-banner-icon">🆕</span>
-  <div class="release-banner-text" id="release-banner-text"></div>
-  <button class="demo-banner-btn" onclick="releaseShowHowTo()">Как развернуть</button>
-  <button class="release-banner-close" onclick="releaseDismiss()" title="Закрыть">✕</button>
 </div>
 
 <!-- ===================== МЕСЯЦ ===================== -->
@@ -948,7 +935,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const realUrl = localStorage.getItem('real_api_url');
   if (realUrl) document.getElementById('settings-url').value = realUrl;
   updateDemoBanner();
-  showReleaseBanner();
   // восстанавливаем вкладку, где пользователь был до обновления страницы
   let startPage = 'dashboard';
   try { const saved = sessionStorage.getItem('active_page'); if (saved) startPage = saved; } catch(e) {}
@@ -959,45 +945,6 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('tour_seen', '1');
   }
 });
-
-// ============================================================
-// РЕЛИЗ-НОТ
-// При каждом обновлении меняем дату и текст — покажется один раз
-// тем, кто не видел эту версию. Хранится по ключу release_seen_<дата>.
-// ============================================================
-const RELEASE = {
-  date: '2026-08-01',
-  title: 'Обновление от 01.08.2026',
-  text: 'Что нового: ' +
-        '• Значительно ускорена загрузка данных (прогрев скрипта, увеличенный таймаут). ' +
-        '• Динамика: капитал теперь может уходить в минус. ' +
-        '• Исправлена ошибка при загрузке баланса. ' +
-        '• + Запись: можно вносить отрицательные суммы — удобно для возврата брони или компенсаций. ' +
-        '• Год: таблицы теперь можно сортировать кликом по заголовку (Категория / Итого). ' +
-        '• Баланс: форма ввода сгруппирована по счетам, порядок блоков и сортировку внутри можно менять перетаскиванием. ' +
-        '<b>Важно:</b> нужно заново развернуть скрипт (Обновить — Развернуть — Версия — Новый). ' +
-        'Как это сделать — в видео-инструкции в Настройках → 📋 Обучение.',
-};
-
-function showReleaseBanner() {
-  const banner = document.getElementById('release-banner');
-  if (!banner) return;
-  if (localStorage.getItem('release_seen_' + RELEASE.date)) return;
-  document.getElementById('release-banner-text').innerHTML =
-    `<div style="font-weight:600;margin-bottom:2px">${RELEASE.title}</div>${RELEASE.text}`;
-  banner.style.display = 'flex';
-}
-
-function releaseDismiss() {
-  localStorage.setItem('release_seen_' + RELEASE.date, '1');
-  document.getElementById('release-banner').style.display = 'none';
-}
-
-function releaseShowHowTo() {
-  releaseDismiss();
-  showPage('settings');
-  setTimeout(toggleLearn, 300);
-}
 
 function updateDemoBanner() {
   const banner = document.getElementById('demo-banner');
@@ -2510,9 +2457,10 @@ function renderAssetInputList() {
             <div class="asset-pos-name" title="${p.name}">${p.name}${p.account ? `<span> · ${p.account}</span>` : ''}</div>
             <input type="text" class="form-input asset-pos-input ${currentVal === '' ? 'empty' : ''}"
               id="asset-input-${p.id}" data-pos-id="${p.id}" data-orig-amount="${currentVal}"
-              placeholder="сумма" value="${currentVal}"
+              placeholder="сумма" value="${currentVal}" enterkeyhint="go"
               oninput="calcAssetPreview('${p.id}');this.classList.remove('empty')"
-              onkeydown="if(event.key==='Enter'){event.preventDefault();saveOneAsset('${p.id}');}">
+              onkeydown="if(event.key==='Enter'){event.preventDefault();saveOneAsset('${p.id}');}"
+              onblur="onAssetBlur('${p.id}')">
           </div>
           <div class="asset-pos-hint" id="asset-hint-${p.id}"></div>
         </div>`;
@@ -2545,6 +2493,30 @@ function renderAssetInputList() {
   });
   html += '</div>';
   el.innerHTML = html;
+}
+
+// Сохранить одну позицию при потере фокуса (для мобильных: сенсорная
+// клавиатура в середине формы не посылает Enter, а лишь переводит фокус).
+// Сохраняем ТОЛЬКО если значение изменилось, и без перерисовки списка,
+// чтобы не сбить фокус и не слать лишние запросы.
+async function onAssetBlur(positionId) {
+  const input = document.getElementById(`asset-input-${positionId}`);
+  if (!input) return;
+  const raw = input.value.trim();
+  const orig = String(input.dataset.origAmount ?? '').trim();
+  if (raw === orig || !raw) return;
+  const amount = parseAmountExpr(raw);
+  if (amount === null || amount < 0) return;
+  const date = document.getElementById('asset-date').value;
+  if (!date) return;
+  try {
+    await saveAssetSmart(date, positionId, amount);
+    input.dataset.origAmount = amount;
+    const r = await apiGet({action:'getAssets'});
+    S.assets = (r.data||[]).map(a=>({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
+    updateCacheAfter('assets');
+    renderBalance();
+  } catch(e) { /* тихо: ошибку покажет следующее сохранение */ }
 }
 
 // Сохранить одну позицию (по Enter)
