@@ -1001,6 +1001,9 @@ function updateCacheAfter(part) {
     if (part === 'transactions') {
       p.transactions = S.transactions;
       p.transactionsLoaded = 'full';
+    } else if (part === 'all') {
+      p.categories = S.categories; p.settings = S.settings; p.assets = S.assets;
+      p.positions = S.positions; p.accounts = S.accounts;
     } else if (part === 'assets') p.assets = S.assets;
     else if (part === 'positions') p.positions = S.positions;
     else if (part === 'categories') p.categories = S.categories;
@@ -1066,32 +1069,25 @@ function clearUnsupportedFlag(key) {
   const cached = loadCache();
   if (cached) applyAllData(cached);
 
-  // Прогревка: первый запрос к уснувшему Apps Script-контейнеру может идти
-  // 20-60 сек (cold start). ЖДЁМ его завершения — только потом шлём остальное,
-  // иначе параллельные запросы в холодный контейнер путаются и падают.
-  const warmupPromise = warmup();
-
   // Загрузка строго ПОСЛЕДОВАТЕЛЬНО: Apps Script при параллельных запросах
-  // к одному скрипту путает ответы (getSettings возвращает данные getAssets).
-  // Последовательно — всегда корректно. Прогрев уже сделан, поэтому на тёплом
-  // скрипте каждый запрос идёт 1-3 сек.
-  warmupPromise
-    .then(async () => {
+  // к одному скрипту путает ответы. Сначала ОДИН getAllData (все справочники
+  // разом — экономит 4 медленных редиректа), затем транзакции.
+  // Для старых скриптов без getAllData — фолбек на поштучные load-функции.
+  (async () => {
+    let ok = false;
+    if (!getUnsupportedFlag('get_all_unsupported')) {
+      try { await loadAllData(); clearUnsupportedFlag('get_all_unsupported'); ok = true; }
+      catch (e) { setUnsupportedFlag('get_all_unsupported'); }
+    }
+    if (!ok) {
       await loadCategories();
       await loadSettings();
       await loadAssets();
       await loadPositions();
-      await loadTransactionsFast(from, to);
-      await loadTransactionsFull();
-    })
-    .catch(async () => {
-      await loadCategories();
-      await loadSettings();
-      await loadAssets();
-      await loadPositions();
-      await loadTransactionsFast(from, to);
-      await loadTransactionsFull();
-    });
+    }
+    await loadTransactionsFast(from, to);
+    await loadTransactionsFull();
+  })().catch(() => {});
 }
 
 // Прогревка: единственный лёгкий запрос, который будит уснувший Apps Script
@@ -1244,6 +1240,16 @@ async function loadSettings() {
     updateCacheAfter('settings');
     applySettings();
   } catch(e){ errToast(e, 'настроек'); }
+}
+
+// Один запрос вместо пяти: getAllData отдаёт категории+настройки+активы+
+// позиции+аккаунты. Сильно экономит время (каждый запрос к Apps Script
+// проходит через медленный редирект ~5-11с). Бросает, если скрипт старый.
+async function loadAllData() {
+  const r = await apiGet({action:'getAllData'});
+  if (!r || !r.data) throw new Error('getAllData недоступен');
+  applyAllData(r.data);
+  updateCacheAfter('all');
 }
 
 async function loadAccounts() {
@@ -2512,9 +2518,6 @@ async function onAssetBlur(positionId) {
   try {
     await saveAssetSmart(date, positionId, amount);
     input.dataset.origAmount = amount;
-    const r = await apiGet({action:'getAssets'});
-    S.assets = (r.data||[]).map(a=>({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
-    updateCacheAfter('assets');
     renderBalance();
   } catch(e) { /* тихо: ошибку покажет следующее сохранение */ }
 }
@@ -2534,7 +2537,7 @@ async function saveOneAsset(positionId) {
   try {
     await saveAssetSmart(date, positionId, amount);
     showToast('Сохранено', 'success');
-    await loadAssets();
+    renderBalance(); renderDashboard();
     renderAssetInputList();
   } catch(e) { showToast('Ошибка', 'error'); }
 }
@@ -2543,15 +2546,27 @@ async function saveOneAsset(positionId) {
 // а) дата + позиция + сумма те же → пропустить
 // б) дата + позиция те же, сумма изменилась → update
 // в) дата другая или записи нет → create
+// S.assets обновляется ЛОКАЛЬНО (без перечитывания листа — экономит медленный GET).
 async function saveAssetSmart(date, positionId, amount) {
   // ищем существующую запись с той же датой и позицией
   const existing = S.assets.filter(a => a.position_id === positionId && a.date === date);
   if (existing.length) {
-    const last = existing.reduce((b,a) => a._rowIndex > b._rowIndex ? a : b);
-    if (last.amount === amount) return; // а) ничего не делать
-    await apiPost({ action: 'updateAsset', rowIndex: last._rowIndex, amount }); // б) update
+    const last = existing.reduce((b,a) => (a._rowIndex||0) > (b._rowIndex||0) ? a : b);
+    if (last.amount === amount) return { skip: true }; // а) ничего не делать
+    if (last._rowIndex) {
+      await apiPost({ action: 'updateAsset', rowIndex: last._rowIndex, amount }); // б) update
+    } else {
+      // нет rowIndex (запись добавлена локально) — addAsset дедуплицирует на сервере
+      await apiPost({ action: 'addAsset', date, position_id: positionId, amount });
+    }
+    last.amount = amount;
+    updateCacheAfter('assets');
+    return { updated: true };
   } else {
     await apiPost({ action: 'addAsset', date, position_id: positionId, amount }); // в) create
+    S.assets.push({ date, position_id: positionId, amount, _rowIndex: null });
+    updateCacheAfter('assets');
+    return { created: true };
   }
 }
 
