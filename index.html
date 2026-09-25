@@ -625,6 +625,17 @@
         <li>Скопируйте появившуюся ссылку (начинается с <code style="color:var(--text)">https://script.google.com/...</code>)</li>
         <li>Вставьте ссылку в поле «URL Apps Script» выше и нажмите «Сохранить»</li>
       </ol>
+      <div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:10px;font-size:12px">
+        <b style="color:var(--text)">⚡ Ускорить загрузку (необязательно)</b><br>
+        Скрипт «засыпает» при простое, поэтому первое открытие иногда бывает долгим. Чтобы он всегда оставался «тёплым», настройте авто-прогрев:
+        <ol style="padding-left:18px;margin:6px 0 0">
+          <li>В Apps Script слева нажмите значок ⏰ (Триггеры)</li>
+          <li>«Добавить триггер»</li>
+          <li>Функция — <code style="color:var(--text)">keepAlive</code> (уже есть в скрипте)</li>
+          <li>Событие — «По времени» → «Таймер по минутам» → «каждые 10 минут»</li>
+          <li>Сохранить и разрешить доступ при запросе</li>
+        </ol>
+      </div>
       <div style="margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:10px;font-size:12px">
         ✅ После сохранения приложение перезагрузится с вашими данными. 
         Все данные хранятся только в вашей таблице — автор сервиса их не видит.
@@ -1156,10 +1167,15 @@ async function apiFetch(doFetch) {
     const res = await doFetch();
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const result = await res.json();
-    if (result && result.error) throw new Error('Apps Script: ' + result.error);
+    if (result && result.error) {
+      const err = new Error('Apps Script: ' + result.error);
+      // Демо-сервер только для чтения: показываем понятное сообщение вместо общей ошибки
+      if (S.isDemo) err.userMessage = 'Демо данные доступны только для чтения';
+      throw err;
+    }
     return result;
   } catch(e) {
-    const msg = e.name === 'AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: ' + e.message;
+    const msg = e.userMessage || (e.name === 'AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: ' + e.message);
     showToast(msg, 'error');
     throw e;
   }
@@ -1726,7 +1742,7 @@ async function submitTransaction() {
     S.selectedCategory=''; renderCategoryChips();
     updateCacheAfter('transactions');
     safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
-  } catch(e){showToast('Ошибка сохранения','error');}
+  } catch(e){showToast(e.userMessage||'Ошибка сохранения','error');}
   finally { if(btn)btn.disabled=false; }
 }
 
@@ -1774,7 +1790,7 @@ async function deleteTx(rowIndex) {
     updateCacheAfter('transactions');
     safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
   }
-  catch(e){showToast('Ошибка','error');}
+  catch(e){showToast(e.userMessage||'Ошибка','error');}
 }
 
 // ============================================================
@@ -1860,7 +1876,7 @@ async function saveEditTx() {
     closeEditTx();
     updateCacheAfter('transactions');
     safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
-  } catch(e) { showToast('Ошибка', 'error'); }
+  } catch(e) { showToast(e.userMessage || 'Ошибка', 'error'); }
 }
 
 async function deleteEditTx() {
@@ -1875,7 +1891,7 @@ async function deleteEditTx() {
     closeEditTx();
     updateCacheAfter('transactions');
     safeRender(renderHistory); safeRender(renderDashboard); safeRender(renderYearTable); safeRender(renderDynamics);
-  } catch(e) { showToast('Ошибка', 'error'); }
+  } catch(e) { showToast(e.userMessage || 'Ошибка', 'error'); }
 }
 
 // ============================================================
@@ -2294,7 +2310,7 @@ function renderPositionsList() {
           renderBalance();
           renderAssetInputList();
         })
-        .catch(()=>showToast('Ошибка','error'));
+        .catch(e=>showToast(e.userMessage||'Ошибка','error'));
     });
   });
 
@@ -2321,7 +2337,7 @@ async function addPosition() {
     document.getElementById('new-pos-account').value='';
     showToast('Позиция добавлена','success');
     await loadPositions(); renderBalance();
-  }catch(e){showToast('Ошибка','error');}
+  }catch(e){showToast(e.userMessage||'Ошибка','error');}
 }
 
 function editPosition(id) {
@@ -2330,13 +2346,13 @@ function editPosition(id) {
   const newAccount=prompt('Счёт (брокер):',p.account||''); if(newAccount===null)return;
   apiPost({action:'updatePosition',id,name:newName.trim()||p.name,block:p.block,account:newAccount.trim()})
     .then(()=>{showToast('Сохранено','success');loadPositions().then(()=>renderBalance());})
-    .catch(()=>showToast('Ошибка','error'));
+    .catch(e=>showToast(e.userMessage||'Ошибка','error'));
 }
 
 async function deletePosition(id) {
   if(!confirm('Удалить позицию из справочника?'))return;
   try{await apiPost({action:'deletePosition',id});showToast('Удалено','success');await loadPositions();renderBalance();}
-  catch(e){showToast('Ошибка','error');}
+  catch(e){showToast(e.userMessage||'Ошибка','error');}
 }
 
 // Рендерим форму ввода активов, сгруппированную по (тип × счёт)
@@ -2539,7 +2555,7 @@ async function saveOneAsset(positionId) {
     showToast('Сохранено', 'success');
     renderBalance(); renderDashboard();
     renderAssetInputList();
-  } catch(e) { showToast('Ошибка', 'error'); }
+  } catch(e) { showToast(e.userMessage || 'Ошибка', 'error'); }
 }
 
 // Умное сохранение одной позиции:
@@ -2611,17 +2627,18 @@ async function submitAllAssets() {
   // Фолбек: последовательное сохранение; одна ошибка не прерывает остальные
   let saved = 0;
   const failed = [];
+  let lastUserMsg = '';
   for (const t of tasks) {
     try {
       await saveAssetSmart(date, t.positionId, t.amount);
       saved++;
-    } catch(e) { failed.push(t.positionId); }
+    } catch(e) { failed.push(t.positionId); if (e.userMessage) lastUserMsg = e.userMessage; }
   }
   failed.forEach(id => {
     const inp = document.getElementById(`asset-input-${id}`);
     if (inp) inp.style.borderColor = 'var(--danger)';
   });
-  if (failed.length) showToast(`Сохранено ${saved}, ошибок: ${failed.length}`, 'error');
+  if (failed.length) showToast(lastUserMsg || `Сохранено ${saved}, ошибок: ${failed.length}`, 'error');
   else showToast(`Сохранено ${saved} позиций`, 'success');
   await loadAssets();
   renderAssetInputList();
@@ -2654,7 +2671,7 @@ async function testConnection(){
 }
 async function saveSetting(key,value){
   try{await apiPost({action:'updateSettings',key,value});S.settings[key]=value;renderBalance();renderDashboard();}
-  catch(e){showToast('Ошибка','error');}
+  catch(e){showToast(e.userMessage||'Ошибка','error');}
 }
 
 // === Гибкий расчёт капитала по группам ===
@@ -2709,7 +2726,7 @@ async function saveCapitalSetting() {
     await apiPost({action:'updateSettings',key:'capital_calculation',value});
     S.settings.capital_calculation = value;
     renderBalance(); renderDashboard(); renderDynamics();
-  } catch(e) { showToast('Ошибка','error'); }
+  } catch(e) { showToast(e.userMessage||'Ошибка','error'); }
 }
 function renderSettingsCategories(){
   const el=document.getElementById('settings-categories');if(!el)return;
@@ -2723,7 +2740,7 @@ async function addCategory(){
   const is_mandatory=document.getElementById('new-cat-mandatory').value;
   if(!name)return showToast('Введите название','error');
   try{await apiPost({action:'addCategory',name,type,is_mandatory});document.getElementById('new-cat-name').value='';showToast('Категория добавлена','success');await loadCategories();}
-  catch(e){showToast('Ошибка','error');}
+  catch(e){showToast(e.userMessage||'Ошибка','error');}
 }
 
 // ============================================================
