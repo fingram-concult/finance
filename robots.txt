@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /finance/app/
-
-Sitemap: https://fingram-concult.github.io/finance/sitemap-index.xml
